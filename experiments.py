@@ -29,7 +29,7 @@ def add_noise_to_points_2D(points_2D, std_dev):
         noisy_points_2D.append(noisy_frame)
     return noisy_points_2D
 
-# Use CK's code to generate a DataFrame with synthetic data (ground truth)
+# Use source code to generate a DataFrame with synthetic data (ground truth)
 orbit = np.array([1837, 0.01, 90.0, 45.0, 0.0, 0.0])  # Example orbital elements
 timestack = np.arange(0, 5000, 500) # Max TA ~ 230 degrees, so 5000 seconds is a good range
 df = generate_data(orbit, timestack)
@@ -58,20 +58,16 @@ plt.show()
 # Plot %difference between optimised and ground truth K matrix
 percent_diff = (np.array(list(optimised_orbit.values())[:5]) - orbit[:5])
 percent_diff = np.append(percent_diff, (np.array(optimised_orbit['True Anomalies'][0]) - orbit[5]))
-# Labels for each variable
 labels = ['a', 'e', 'i', 'RAAN', 'ω', 'Initial TA']
 plt.figure(figsize=(8, 5))
-# Use a colormap to differentiate the bars
 bars = plt.bar(labels, percent_diff, color=plt.cm.viridis(np.linspace(0, 1, len(labels))))
 plt.ylabel('Difference')
 plt.axhline(0, color='gray', linestyle='--')
 plt.show()
 
 # Plot difference between optimised and ground truth K matrix
-# This is not applicable here as we are not optimising K in this experiment.
 diff = np.array(list(optimised_orbit['Intrinsic Parameters'])) - np.array(K_GT)
 guess_diff = np.array(K_guess) - np.array(K_GT)
-# Labels for each intrinsic parameter
 labels_guess = ['FOV', 'Width', 'Height']
 labels_k = ['FOV', 'Width', 'Height']
 plt.figure(figsize=(8, 5))
@@ -81,7 +77,6 @@ plt.ylabel('Difference')
 plt.axhline(0, color='gray', linestyle='--')
 plt.legend()
 plt.show()
-exit()
 
 # EXPERIMENT 2: Add noise to the 2D points and optimise the orbit
 std_dev = range(0, 10, 2)  # Standard deviation of noise to add
@@ -114,10 +109,8 @@ plt.show()
 # Plot %difference between optimised and ground truth K matrix
 percent_diff = (np.array(list(optimised_orbit_noisy.values())[:5]) - orbit[:5])
 percent_diff = np.append(percent_diff, (np.array(optimised_orbit_noisy['True Anomalies'][0]) - orbit[5]))
-# Labels for each variable
 labels = ['a', 'e', 'i', 'RAAN', 'ω', 'Initial TA']
 plt.figure(figsize=(8, 5))
-# Use a colormap to differentiate the bars
 bars = plt.bar(labels, percent_diff, color=plt.cm.viridis(np.linspace(0, 1, len(labels))))
 plt.ylabel('Difference')
 plt.axhline(0, color='gray', linestyle='--')
