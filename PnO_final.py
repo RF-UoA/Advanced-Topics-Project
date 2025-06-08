@@ -107,10 +107,15 @@ def reprojection_error(params, R_list, points_3D_list, points_2D_list):
                     [0, 0, 1]])  # Intrinsic matrix
 
     total_error = 0
+    # curr_TA = true_anomalies[0]
+    # TA_iter = true_anomalies[1]
     for i, (points_3D, points_2D, R) in enumerate(zip(points_3D_list, points_2D_list, R_list)):
         # Compute translation vector (x, y, z) for the current frame
         mu_moon = 4902.800066
         tvec = kepler_to_cartesian(*orbital_elements, true_anomalies[i], mu_moon)[0]
+        # tvec = kepler_to_cartesian(*orbital_elements, curr_TA, mu_moon)[0]
+        # Update the current true anomaly for the next iteration
+        # curr_TA += TA_iter
 
         # Use external library to convert orbital elements to position vector
         # coe_oe = np.array([orbital_elements[0], orbital_elements[1], orbital_elements[2], orbital_elements[3], orbital_elements[4], true_anomalies[i]])
@@ -145,12 +150,11 @@ def solve_pnp(points_3D_list, points_2D_list, R_list):
     num_frames = len(points_3D_list)
 
     # Initial guess for orbital elements and true anomalies
-    initial_orbital_elements = np.array([1837, 0.01, 90, 45, 0])  # Example initial guess
+    initial_orbital_elements = np.array([1820, 0.02, 92, 46, 0])  # Example initial guess
     initial_true_anomalies = np.linspace(0, 230, num_frames)       # Spread true anomalies evenly
+    # initial_true_anomalies = np.array([0, 230/num_frames])  # First true anomaly is 0, difference is 230/num_frames
     initial_intrinsic_vals = np.array([60, 1024, 1024])  # Example intrinsic values (K matrix)
     initial_guess = np.hstack((initial_orbital_elements, initial_intrinsic_vals, initial_true_anomalies))
-
-    # Add K to initial guess
 
     # Define bounds for the optimization
     bounds = [
@@ -169,7 +173,7 @@ def solve_pnp(points_3D_list, points_2D_list, R_list):
         initial_guess,
         args=(R_list, points_3D_list, points_2D_list),
         method='L-BFGS-B'
-        # options={'disp': True, 'maxiter': 1500}
+        # options={'disp': False, 'maxiter': 20000}
     )
 
     # Extract optimized parameters

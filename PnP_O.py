@@ -310,7 +310,7 @@ def solve_pnp(points_3D_list, points_2D_list, K, R_list):
     num_frames = len(points_3D_list)
 
     # Initial guess for orbital elements and true anomalies
-    initial_orbital_elements = np.array([1700, 0.02, 92, 46, 0])  # Example initial guess
+    initial_orbital_elements = np.array([1820, 0.02, 92, 46, 0])  # Example initial guess
     initial_true_anomalies = np.linspace(0, 230, num_frames)       # Spread true anomalies evenly
     initial_guess = np.hstack((initial_orbital_elements, initial_true_anomalies))
 

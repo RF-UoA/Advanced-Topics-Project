@@ -61,9 +61,9 @@ def parse_attitudes(attitudes):
     return matrices
 
 def get_intrinsics(fov, im_width, im_height):
-    fov = fov*math.pi/180
-    fx = im_width/(2*math.tan(fov)) # Conversion from fov to focal length
-    fy = im_height/(2*math.tan(fov)) # Conversion from fov to focal length
+    fov = fov*np.pi/180
+    fx = im_width/(2*np.tan(fov/2)) # Conversion from fov to focal length
+    fy = im_height/(2*np.tan(fov/2)) # Conversion from fov to focal length
     cx = im_width/2
     cy = im_height/2
     return (np.array([[fx, 0, cx],[0, fy, cy],[0, 0, 1]]))
@@ -84,7 +84,7 @@ def get_correspondences():
     ground_truth_matrix = camera_matrix
 
     robbins = read_txt_to_dataframe('data/robbins_navigation_dataset_christians_all.txt')
-    t_inst = read_csv_to_dataframe('output/testing_instance.csv')
+    t_inst = read_csv_to_dataframe('output/testing_instance_save.csv')
 
     w_points_list = []
     i_points_list = []
@@ -116,3 +116,38 @@ def get_correspondences():
     # print("Image Points: ", image_points)
 
     return w_points_list, i_points_list, camera_matrix, parse_attitudes(attitude_list)
+
+def read_data_from_df(df):
+    w_points_list = []
+    i_points_list = []
+    extrinsic_list = []
+    ref_vals = []
+    robbins = read_txt_to_dataframe('data/robbins_navigation_dataset_christians_all.txt')
+    for i, row in df.iterrows():
+        i_points_list.append(np.vstack(row['Centre points 2D coord']))
+        ref_vals.append(row['Camera Position'])
+        extrinsic_list.append(row['Camera Extrinsic'])
+
+        indices = row['Crater Indices']
+        w_points = robbins.iloc[indices][[' X', ' Y', ' Z']].to_numpy()
+        w_points_list.append(w_points)
+
+    return w_points_list, i_points_list, extrinsic_list
+
+def get_intrinsics_from_file(calibration_file):
+    f = open(calibration_file, 'r')
+    lines = f.readlines()
+    calibration = lines[1].split(',')
+    fov = int(calibration[0])
+    # fx = int(calibration[1])
+    # fy = int(calibration[2])
+    image_width = int(calibration[3])
+    image_height = int(calibration[4])
+
+    fov = fov*np.pi/180
+    fx = image_width/(2*np.tan(fov/2)) # Conversion from fov to focal length
+    fy = image_height/(2*np.tan(fov/2)) # Conversion from fov to focal length
+    cx = image_width/2
+    cy = image_height/2
+
+    return (np.array([[fx, 0, cx],[0, fy, cy],[0, 0, 1]]))

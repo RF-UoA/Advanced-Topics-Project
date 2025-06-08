@@ -14,6 +14,7 @@ import cv2
 import csv
 import os
 import glob
+import pandas as pd
 
 np.random.seed(1)
 
@@ -587,6 +588,101 @@ def calculate_altitude_and_speed(rv):
 
     return altitude_km, speed_km_s
 
+def generate_data(o_elements, time_stack):
+    # convert to state vector
+    rv = KeprvTrans.coe2rv(o_elements, mu_km_s)
+    # Propagate the orbit for each time in the stack using the two_body function
+    propagated_positions = []
+    propagated_velocities = []
+    for tau in time_stack:
+        rf, vf = two_body(mu_km_s, tau, rv[0:3], rv[3:6])
+        propagated_positions.append(rf)
+        propagated_velocities.append(vf)
+
+    # Convert lists to numpy arrays for easier handling
+    propagated_positions = np.array(propagated_positions)
+    propagated_velocities = np.array(propagated_velocities)
+    camera_extrinsic = np.zeros([propagated_positions.shape[0], 3, 4])
+    for i in range(propagated_positions.shape[0]):
+        camera_extrinsic[i] = create_extrinsic_matrix2(propagated_positions[i] / np.linalg.norm(propagated_positions[i]),
+                                        np.linalg.norm(propagated_positions[i]))
+        
+    ### read robbin's catalog
+    data_dir = 'data'
+    all_craters_database_text_dir = data_dir + '/robbins_navigation_dataset_christians_all.txt'
+
+    CW_params, CW_conic, CW_conic_inv, CW_ENU, CW_Hmi_k, ID = \
+            read_crater_database(all_craters_database_text_dir)
+    
+    # multiply by the camera intrinsic
+    calibration_file = data_dir + '/calibration.txt'
+    K = get_intrinsic(calibration_file)
+
+    # print('Intrinsic matrix: ', K)
+    
+    positions = []
+    positions = pd.DataFrame(positions, columns=['Camera Position', 'Velocity', 'Camera Extrinsic', 'Centre points 2D coord', 'Crater Indices'])
+    img_w = img_h = 1024
+    for i in range(propagated_positions.shape[0]):
+        curr_cam = camera_extrinsic[i]
+        # print('curr_cam: ', curr_cam)
+        cam_pos = -curr_cam[0:3, 0:3].T @ curr_cam[0:3, 3]
+        
+        curr_cam = K @ curr_cam
+
+        # 1) project all 3D points onto the image plane
+        projected_3D_points = curr_cam @ np.hstack([CW_params[:, 0:3], np.ones((CW_params.shape[0], 1))]).T
+        points_on_img_plane = np.array([projected_3D_points[0, :] / projected_3D_points[2, :],
+                                        projected_3D_points[1, :] / projected_3D_points[2, :]])
+
+        # 2) Filter points that are within the image dimensions
+        within_img_valid_indices = np.where((points_on_img_plane[0, :] >= 0) &
+                                    (points_on_img_plane[0, :] <= img_w) &
+                                    (points_on_img_plane[1, :] >= 0) &
+                                    (points_on_img_plane[1, :] <= img_h) &
+                                ~np.isnan(points_on_img_plane[0, :]) &
+                                ~np.isnan(points_on_img_plane[1, :]))[0]
+
+        # 3) filter the points that are behind the horizon
+        visible_pts, filtered_indices = visible_points_on_sphere(CW_params[:, 0:3], np.array([0, 0, 0]), np.linalg.norm(CW_params[0, 0:3]),
+                                    cam_pos, within_img_valid_indices)
+        
+
+        final_visible_ID = []
+        imaged_params = []
+        final_center_point_2D_coord = []
+        # 4) project conic and get ellipse parameters on image plane
+
+        for j in range(len(filtered_indices)):
+            A = conic_from_crater(CW_conic[filtered_indices[j]], CW_Hmi_k[filtered_indices[j]], curr_cam)
+
+            # convert A to ellipse parameters
+            flag, x_c, y_c, a, b, phi = extract_ellipse_parameters_from_conic(A)
+
+            if np.isnan(a) or np.isnan(b):
+                continue
+
+            if (flag): # if it's proper conic
+                if b > 5:
+                    final_visible_ID.append(filtered_indices[j])
+                    imaged_params.append([x_c, y_c, a, b, phi])
+                    final_center_point_2D_coord.append(points_on_img_plane[:, filtered_indices[j]])
+        
+        # 6) save position, velocity, camera_extrinsic, 2d coord. and ID in a csv file
+        # positions.append([propagated_positions[i], propagated_velocities[i], camera_extrinsic[i], final_center_point_2D_coord, final_visible_ID])
+        # Use dataframe instead of list
+        df = pd.DataFrame({
+            'Camera Position': [propagated_positions[i]],
+            'Velocity': [propagated_velocities[i]],
+            'Camera Extrinsic': [camera_extrinsic[i]],
+            'Centre points 2D coord': [final_center_point_2D_coord],
+            'Crater Indices': [final_visible_ID]
+        })
+        positions = pd.concat([positions, df], ignore_index=True)
+
+    return positions
+
+
 if __name__ == "__main__":
     # generate a random orbit in keplerian state
     coe_oe = np.array([np.random.uniform(1837.7, 2137.7),
@@ -630,7 +726,7 @@ if __name__ == "__main__":
     print(f"Speed: {speed_km_s:.2f} km/s")
 
     # Create a time stack: 0 to 3600 seconds, with a 100-second interval
-    time_stack = np.arange(0, 5000, 500)  # From 0 to 3600 seconds with 100 seconds interval
+    time_stack = np.arange(0, 5000, 250)  # From 0 to 3600 seconds with 100 seconds interval
 
     # Initialize lists to store propagated positions and velocities
     propagated_positions = []
